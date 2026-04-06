@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
-import { Mail, TrendingUp, BarChart3, Clock, AlertCircle } from "lucide-react"
-import { getAnalytics, getHistory } from "../api"
+import { Mail, TrendingUp, BarChart3, Clock, AlertCircle, X, ThumbsUp, ThumbsDown, Link2 } from "lucide-react"
+import { getAnalytics, getHistory, getEmailDetail } from "../api"
+import toast from "react-hot-toast"
 import { tk, FONTS, CATEGORY_COLORS } from "../theme"
 
 const stagger = { hidden:{}, show:{ transition:{ staggerChildren:0.07 } } }
@@ -18,12 +19,27 @@ const DarkTooltip = ({ active, payload }) => {
   )
 }
 
+const TONE_COLORS = {
+  formal: { color:"#8b5cf6", bg:"rgba(139,92,246,0.06)", border:"rgba(139,92,246,0.18)" },
+  friendly: { color:"#22c55e", bg:"rgba(34,197,94,0.06)", border:"rgba(34,197,94,0.18)" },
+  brief: { color:"#f59e0b", bg:"rgba(245,158,11,0.06)", border:"rgba(245,158,11,0.18)" },
+}
+
+const CAT_BADGE = {
+  urgent: { bg:"rgba(239,68,68,0.1)", color:"#ef4444", border:"rgba(239,68,68,0.25)" },
+  action_required: { bg:"rgba(245,158,11,0.1)", color:"#f59e0b", border:"rgba(245,158,11,0.25)" },
+  fyi: { bg:"rgba(99,102,241,0.1)", color:"#6366f1", border:"rgba(99,102,241,0.25)" },
+  spam: { bg:"rgba(71,85,105,0.1)", color:"#475569", border:"rgba(71,85,105,0.25)" },
+}
+
 export default function Analytics({ dark = true }) {
   const t = tk(dark)
   const [analytics, setAnalytics] = useState(null)
   const [history,   setHistory]   = useState([])
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
+  const [selectedEmail, setSelectedEmail] = useState(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -34,6 +50,18 @@ export default function Analytics({ dark = true }) {
       finally { setLoading(false) }
     })()
   }, [])
+
+  const handleEmailClick = async (emailId) => {
+    setLoadingDetail(true)
+    try {
+      const detail = await getEmailDetail(emailId)
+      setSelectedEmail(detail)
+    } catch {
+      toast.error("Could not load email details")
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
 
   if (loading) return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -67,7 +95,7 @@ export default function Analytics({ dark = true }) {
         .an * { box-sizing:border-box; }
         .an { font-family:'DM Sans',sans-serif; }
         .an-card { background:${t.cardBg}; border:1px solid ${t.cardBorder}; border-radius:18px; box-shadow:0 2px 28px rgba(0,0,0,${dark?0.45:0.07}); transition:background 0.35s, border-color 0.35s; }
-        .an-trow { transition:background 0.15s; cursor:default; }
+        .an-trow { transition:background 0.15s; cursor:pointer; }
         .an-trow:hover { background:${t.rowHover}; }
         .stat-ic { transition:transform 0.22s; }
         .stat-card:hover .stat-ic { transform:scale(1.1); }
@@ -171,6 +199,7 @@ export default function Analytics({ dark = true }) {
               </span>
             )}
           </div>
+          <p style={{ fontSize:11, color:t.textFaint, marginBottom:12 }}>Click any email to view full analysis</p>
           {history.length===0 ? <Empty t={t} text="No emails analyzed yet." icon={<Mail size={26} color={t.textFaint}/>}/> : (
             <div style={{ overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
@@ -191,7 +220,8 @@ export default function Analytics({ dark = true }) {
                         <motion.tr key={email.id} className="an-trow"
                           initial={{ opacity:0, x:-8 }} animate={{ opacity:1, x:0 }}
                           transition={{ delay:idx*0.04, duration:0.3 }}
-                          style={{ borderBottom:`1px solid ${t.divider}` }}>
+                          style={{ borderBottom:`1px solid ${t.divider}` }}
+                          onClick={() => handleEmailClick(email.id)}>
                           <td style={{ padding:"13px 14px", color:t.textSecondary, maxWidth:220, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                             {email.subject||<span style={{ color:t.textFaint, fontStyle:"italic" }}>No subject</span>}
                           </td>
@@ -225,7 +255,94 @@ export default function Analytics({ dark = true }) {
           )}
         </motion.div>
       </div>
+
+      {/* Email Detail Modal */}
+      <AnimatePresence>
+        {selectedEmail && (
+          <EmailDetailModal email={selectedEmail} onClose={() => setSelectedEmail(null)} dark={dark} t={t} />
+        )}
+      </AnimatePresence>
     </>
+  )
+}
+
+function EmailDetailModal({ email, onClose, dark, t }) {
+  return (
+    <motion.div
+      initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+      onClick={onClose}
+      style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", padding:16, background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)" }}>
+      <motion.div
+        initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95, y:20 }}
+        transition={{ duration:0.3 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`, borderRadius:20, padding:24, width:"100%", maxWidth:640, maxHeight:"80vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+          <h3 style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16, color:t.textPrimary, margin:0 }}>Email Analysis</h3>
+          <button onClick={onClose}
+            style={{ width:32, height:32, borderRadius:8, border:"none", background:t.accentDim, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <X size={16} color={t.textMuted} />
+          </button>
+        </div>
+
+        {/* Category + Confidence */}
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
+          {(() => {
+            const cb = CAT_BADGE[email.category] || CAT_BADGE.fyi
+            return <span style={{ padding:"4px 14px", borderRadius:20, fontSize:11, fontWeight:700, textTransform:"uppercase", background:cb.bg, color:cb.color, border:`1px solid ${cb.border}` }}>
+              {email.category?.replace("_"," ")}
+            </span>
+          })()}
+          <span style={{ fontSize:12, fontWeight:600, color:t.textMuted }}>
+            {Math.round(email.confidence * 100)}% confidence
+          </span>
+        </div>
+
+        {/* Thread badge */}
+        {email.is_thread && (
+          <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 12px", marginBottom:14, background:"rgba(139,92,246,0.08)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:10 }}>
+            <Link2 size={12} color="#8b5cf6" />
+            <span style={{ fontSize:11, fontWeight:600, color:"#8b5cf6" }}>Thread Detected</span>
+          </div>
+        )}
+
+        {/* Summary */}
+        <div style={{ position:"relative", background:dark?"rgba(99,102,241,0.06)":"rgba(99,102,241,0.04)", borderRadius:14, padding:"14px 18px 14px 22px", marginBottom:20, border:`1px solid ${dark?"rgba(99,102,241,0.15)":"rgba(99,102,241,0.1)"}`, overflow:"hidden" }}>
+          <div style={{ position:"absolute", left:0, top:0, bottom:0, width:3, background:"linear-gradient(to bottom,#6366f1,#8b5cf6)", borderRadius:"3px 0 0 3px" }} />
+          <p style={{ fontSize:10, fontWeight:700, color:"#6366f1", textTransform:"uppercase", letterSpacing:"0.12em", margin:"0 0 6px" }}>Summary</p>
+          <p style={{ fontSize:13, color:t.textSecondary, lineHeight:1.6, margin:0 }}>{email.summary}</p>
+        </div>
+
+        {/* Replies */}
+        <h4 style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, color:t.textSecondary, margin:"0 0 12px" }}>Reply Drafts</h4>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {email.replies?.map((reply) => {
+            const tc = TONE_COLORS[reply.tone] || TONE_COLORS.formal
+            return (
+              <div key={reply.id} style={{ border:`1px solid ${tc.border}`, background:tc.bg, borderRadius:14, padding:16 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                  <span style={{ fontSize:10, fontWeight:800, letterSpacing:"0.15em", textTransform:"uppercase", color:tc.color }}>{reply.tone}</span>
+                  {reply.feedback && (
+                    <span style={{
+                      display:"flex", alignItems:"center", gap:4, fontSize:10, fontWeight:600, padding:"2px 10px", borderRadius:20,
+                      background: reply.feedback === "liked" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+                      color: reply.feedback === "liked" ? "#22c55e" : "#ef4444",
+                      border: `1px solid ${reply.feedback === "liked" ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`
+                    }}>
+                      {reply.feedback === "liked" ? <ThumbsUp size={10} /> : <ThumbsDown size={10} />}
+                      {reply.feedback === "liked" ? "Liked" : "Disliked"}
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize:12.5, color:t.textSecondary, lineHeight:1.7, whiteSpace:"pre-wrap", margin:0 }}>{reply.draft_text}</p>
+              </div>
+            )
+          })}
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { AlertTriangle, AlertCircle, Info, ShieldX, Inbox, ChevronDown, RefreshCw, Mail } from "lucide-react"
-import { getHistory } from "../api"
+import { AlertTriangle, AlertCircle, Info, ShieldX, Inbox, ChevronDown, RefreshCw, Mail, X, ThumbsUp, ThumbsDown, Link2 } from "lucide-react"
+import { getHistory, getEmailDetail } from "../api"
+import toast from "react-hot-toast"
 import { tk, FONTS } from "../theme"
 
 const PRIORITY_ORDER = ["urgent", "action_required", "fyi", "spam"]
@@ -11,6 +12,19 @@ const PRIORITY_CFG = {
   action_required: { label:"Action Required", icon:AlertCircle,   accent:"#f59e0b", accentDim:"rgba(245,158,11,0.1)", accentBorder:"rgba(245,158,11,0.22)", accentGlow:"rgba(245,158,11,0.12)", rowBorder:"rgba(245,158,11,0.2)" },
   fyi:             { label:"FYI",             icon:Info,           accent:"#6366f1", accentDim:"rgba(99,102,241,0.1)", accentBorder:"rgba(99,102,241,0.22)", accentGlow:"rgba(99,102,241,0.12)", rowBorder:"rgba(99,102,241,0.2)" },
   spam:            { label:"Spam",            icon:ShieldX,        accent:"#475569", accentDim:"rgba(71,85,105,0.1)",  accentBorder:"rgba(71,85,105,0.2)",   accentGlow:"rgba(71,85,105,0.1)",   rowBorder:"rgba(71,85,105,0.18)" },
+}
+
+const TONE_COLORS = {
+  formal: { color:"#8b5cf6", bg:"rgba(139,92,246,0.06)", border:"rgba(139,92,246,0.18)" },
+  friendly: { color:"#22c55e", bg:"rgba(34,197,94,0.06)", border:"rgba(34,197,94,0.18)" },
+  brief: { color:"#f59e0b", bg:"rgba(245,158,11,0.06)", border:"rgba(245,158,11,0.18)" },
+}
+
+const CAT_BADGE = {
+  urgent: { bg:"rgba(239,68,68,0.1)", color:"#ef4444", border:"rgba(239,68,68,0.25)" },
+  action_required: { bg:"rgba(245,158,11,0.1)", color:"#f59e0b", border:"rgba(245,158,11,0.25)" },
+  fyi: { bg:"rgba(99,102,241,0.1)", color:"#6366f1", border:"rgba(99,102,241,0.25)" },
+  spam: { bg:"rgba(71,85,105,0.1)", color:"#475569", border:"rgba(71,85,105,0.25)" },
 }
 
 const sectionVar = { hidden:{ opacity:0, y:14 }, show:{ opacity:1, y:0, transition:{ duration:0.4, ease:[0.22,1,0.36,1] } } }
@@ -23,6 +37,8 @@ export default function PriorityInbox({ dark = true }) {
   const [error,      setError]      = useState(null)
   const [expanded,   setExpanded]   = useState({})
   const [refreshing, setRefreshing] = useState(false)
+  const [selectedEmail, setSelectedEmail] = useState(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   const fetchEmails = async (isRefresh=false) => {
     if (isRefresh) setRefreshing(true)
@@ -37,6 +53,18 @@ export default function PriorityInbox({ dark = true }) {
   useEffect(() => { fetchEmails() }, [])
 
   const toggleSection = cat => setExpanded(p=>({...p,[cat]:!p[cat]}))
+
+  const handleEmailClick = async (emailId) => {
+    setLoadingDetail(true)
+    try {
+      const detail = await getEmailDetail(emailId)
+      setSelectedEmail(detail)
+    } catch {
+      toast.error("Could not load email details")
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
 
   const grouped={}; PRIORITY_ORDER.forEach(c=>(grouped[c]=[]));
   emails.forEach(email => { const cat=email.category||"fyi"; if(grouped[cat]) grouped[cat].push(email); else grouped["fyi"].push(email) })
@@ -73,7 +101,7 @@ export default function PriorityInbox({ dark = true }) {
         ${FONTS}
         .pi * { box-sizing:border-box; }
         .pi { font-family:'DM Sans',sans-serif; }
-        .pi-card { background:${t.cardBg}; border:1px solid ${t.cardBorder}; border-radius:14px; padding:16px 18px; cursor:default; transition:background 0.18s, border-color 0.18s, transform 0.18s, box-shadow 0.18s; position:relative; overflow:hidden; }
+        .pi-card { background:${t.cardBg}; border:1px solid ${t.cardBorder}; border-radius:14px; padding:16px 18px; cursor:pointer; transition:background 0.18s, border-color 0.18s, transform 0.18s, box-shadow 0.18s; position:relative; overflow:hidden; }
         .pi-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--acc); opacity:0; transition:opacity 0.18s; border-radius:2px 0 0 2px; }
         .pi-card:hover { transform:translateX(3px); box-shadow:-3px 0 0 0 var(--acc), 0 4px 20px rgba(0,0,0,${dark?0.3:0.1}); border-color:var(--acc-border); }
         .pi-card:hover::before { opacity:1; }
@@ -87,18 +115,16 @@ export default function PriorityInbox({ dark = true }) {
 
       <div className="pi" style={{ display:"flex", flexDirection:"column", gap:6 }}>
 
-        {/* page header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:16 }}>
           <div>
             <h2 style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:22, color:t.textPrimary, letterSpacing:"-0.02em", margin:0 }}>Priority Inbox</h2>
-            <p style={{ fontSize:12, color:t.textMuted, marginTop:4 }}>{emails.length} email{emails.length!==1?"s":""} sorted by urgency</p>
+            <p style={{ fontSize:12, color:t.textMuted, marginTop:4 }}>{emails.length} email{emails.length!==1?"s":""} sorted by urgency · Click any email to view details</p>
           </div>
           <button className="ref-btn" onClick={()=>fetchEmails(true)}>
             <RefreshCw size={13} className={refreshing?"spinning":""}/>Refresh
           </button>
         </div>
 
-        {/* summary pills */}
         <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:20 }}>
           {PRIORITY_ORDER.map(cat=>{
             const cfg=PRIORITY_CFG[cat]; const count=grouped[cat].length; if(!count) return null
@@ -113,7 +139,6 @@ export default function PriorityInbox({ dark = true }) {
           })}
         </div>
 
-        {/* sections */}
         {PRIORITY_ORDER.map((category, sectionIdx) => {
           const cfg=PRIORITY_CFG[category]; const items=grouped[category]; const Icon=cfg.icon; const isOpen=expanded[category]!==false
           if(items.length===0) return null
@@ -142,7 +167,8 @@ export default function PriorityInbox({ dark = true }) {
                         return (
                           <motion.div key={email.id} custom={i} variants={rowVar} initial="hidden" animate="show"
                             className="pi-card"
-                            style={{ "--acc":cfg.accent, "--acc-border":cfg.accentBorder }}>
+                            style={{ "--acc":cfg.accent, "--acc-border":cfg.accentBorder }}
+                            onClick={() => handleEmailClick(email.id)}>
                             <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", gap:12 }}>
                               <div style={{ flex:1, minWidth:0 }}>
                                 <p style={{ fontSize:13, fontWeight:600, color:t.textPrimary, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", margin:0 }}>
@@ -182,6 +208,88 @@ export default function PriorityInbox({ dark = true }) {
           )
         })}
       </div>
+
+      {/* Email Detail Modal */}
+      <AnimatePresence>
+        {selectedEmail && (
+          <EmailDetailModal email={selectedEmail} onClose={() => setSelectedEmail(null)} dark={dark} t={t} />
+        )}
+      </AnimatePresence>
     </>
+  )
+}
+
+function EmailDetailModal({ email, onClose, dark, t }) {
+  return (
+    <motion.div
+      initial={{ opacity:0 }} animate={{ opacity:1 }} exit={{ opacity:0 }}
+      onClick={onClose}
+      style={{ position:"fixed", inset:0, zIndex:50, display:"flex", alignItems:"center", justifyContent:"center", padding:16, background:"rgba(0,0,0,0.6)", backdropFilter:"blur(4px)" }}>
+      <motion.div
+        initial={{ opacity:0, scale:0.95, y:20 }} animate={{ opacity:1, scale:1, y:0 }} exit={{ opacity:0, scale:0.95, y:20 }}
+        transition={{ duration:0.3 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{ background:t.cardBg, border:`1px solid ${t.cardBorder}`, borderRadius:20, padding:24, width:"100%", maxWidth:640, maxHeight:"80vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.5)" }}>
+
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:20 }}>
+          <h3 style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:16, color:t.textPrimary, margin:0 }}>Email Analysis</h3>
+          <button onClick={onClose}
+            style={{ width:32, height:32, borderRadius:8, border:"none", background:t.accentDim, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <X size={16} color={t.textMuted} />
+          </button>
+        </div>
+
+        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:16 }}>
+          {(() => {
+            const cb = CAT_BADGE[email.category] || CAT_BADGE.fyi
+            return <span style={{ padding:"4px 14px", borderRadius:20, fontSize:11, fontWeight:700, textTransform:"uppercase", background:cb.bg, color:cb.color, border:`1px solid ${cb.border}` }}>
+              {email.category?.replace("_"," ")}
+            </span>
+          })()}
+          <span style={{ fontSize:12, fontWeight:600, color:t.textMuted }}>
+            {Math.round(email.confidence * 100)}% confidence
+          </span>
+        </div>
+
+        {email.is_thread && (
+          <div style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"5px 12px", marginBottom:14, background:"rgba(139,92,246,0.08)", border:"1px solid rgba(139,92,246,0.2)", borderRadius:10 }}>
+            <Link2 size={12} color="#8b5cf6" />
+            <span style={{ fontSize:11, fontWeight:600, color:"#8b5cf6" }}>Thread Detected</span>
+          </div>
+        )}
+
+        <div style={{ position:"relative", background:dark?"rgba(99,102,241,0.06)":"rgba(99,102,241,0.04)", borderRadius:14, padding:"14px 18px 14px 22px", marginBottom:20, border:`1px solid ${dark?"rgba(99,102,241,0.15)":"rgba(99,102,241,0.1)"}`, overflow:"hidden" }}>
+          <div style={{ position:"absolute", left:0, top:0, bottom:0, width:3, background:"linear-gradient(to bottom,#6366f1,#8b5cf6)", borderRadius:"3px 0 0 3px" }} />
+          <p style={{ fontSize:10, fontWeight:700, color:"#6366f1", textTransform:"uppercase", letterSpacing:"0.12em", margin:"0 0 6px" }}>Summary</p>
+          <p style={{ fontSize:13, color:t.textSecondary, lineHeight:1.6, margin:0 }}>{email.summary}</p>
+        </div>
+
+        <h4 style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:13, color:t.textSecondary, margin:"0 0 12px" }}>Reply Drafts</h4>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {email.replies?.map((reply) => {
+            const tc = TONE_COLORS[reply.tone] || TONE_COLORS.formal
+            return (
+              <div key={reply.id} style={{ border:`1px solid ${tc.border}`, background:tc.bg, borderRadius:14, padding:16 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+                  <span style={{ fontSize:10, fontWeight:800, letterSpacing:"0.15em", textTransform:"uppercase", color:tc.color }}>{reply.tone}</span>
+                  {reply.feedback && (
+                    <span style={{
+                      display:"flex", alignItems:"center", gap:4, fontSize:10, fontWeight:600, padding:"2px 10px", borderRadius:20,
+                      background: reply.feedback === "liked" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+                      color: reply.feedback === "liked" ? "#22c55e" : "#ef4444",
+                      border: `1px solid ${reply.feedback === "liked" ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`
+                    }}>
+                      {reply.feedback === "liked" ? <ThumbsUp size={10} /> : <ThumbsDown size={10} />}
+                      {reply.feedback === "liked" ? "Liked" : "Disliked"}
+                    </span>
+                  )}
+                </div>
+                <p style={{ fontSize:12.5, color:t.textSecondary, lineHeight:1.7, whiteSpace:"pre-wrap", margin:0 }}>{reply.draft_text}</p>
+              </div>
+            )
+          })}
+        </div>
+      </motion.div>
+    </motion.div>
   )
 }

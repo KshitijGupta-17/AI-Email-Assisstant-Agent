@@ -162,7 +162,35 @@ async def get_history(
     emails = result.scalars().all()
     return [EmailHistoryItem.model_validate(e) for e in emails]
 
+@router.get("/{email_id}", response_model=EmailAnalyzeResponse)
+async def get_email_detail(
+    email_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Email).where(Email.id == email_id, Email.user_id == current_user.id)
+    )
+    email = result.scalar_one_or_none()
 
+    if not email:
+        raise HTTPException(status_code=404, detail="Email not found.")
+
+    replies_result = await db.execute(
+        select(Reply).where(Reply.email_id == email_id)
+    )
+    reply_objects = replies_result.scalars().all()
+
+    is_thread = detect_thread(email.body or "")
+
+    return EmailAnalyzeResponse(
+        email_id=email.id,
+        category=email.category,
+        confidence=email.confidence,
+        summary=email.summary,
+        is_thread=is_thread,
+        replies=[ReplyOut.model_validate(r) for r in reply_objects],
+    )
 @router.post("/{email_id}/regenerate", response_model=list[ReplyOut])
 async def regenerate_replies(
     email_id: int,

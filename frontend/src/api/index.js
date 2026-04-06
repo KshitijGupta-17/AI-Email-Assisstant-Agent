@@ -86,3 +86,7 @@ export const fetchGmailEmails = async () => {
   })
   return response.data.emails
 }
+export const getEmailDetail = async (emailId) => {
+  const response = await api.get(`/api/email/${emailId}`)
+  return response.data
+}
