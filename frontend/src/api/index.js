@@ -7,26 +7,82 @@ const api = axios.create({
   headers: { "Content-Type": "application/json" },
 })
 
-// Analyze an email — classify, summarize, generate replies
-export const analyzeEmail = async (payload) => {
-  const response = await api.post("/api/email/analyze", payload)
+// Add token to every request automatically
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token")
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
+  }
+  return config
+})
+
+export const analyzeEmail = async (data) => {
+  const response = await api.post("/api/email/analyze", {
+    subject: data.subject,
+    sender: data.sender,
+    body: data.body,
+    preferred_tone: data.preferred_tone || null,
+  })
   return response.data
 }
 
-// Submit feedback (liked / disliked) on a reply draft
 export const submitFeedback = async (replyId, feedback) => {
   const response = await api.post(`/api/email/${replyId}/feedback`, { feedback })
   return response.data
 }
 
-// Get last 20 analyzed emails
 export const getHistory = async () => {
   const response = await api.get("/api/email/history")
   return response.data
 }
 
-// Get analytics summary
+export const regenerateReplies = async (emailId, tone) => {
+  const response = await api.post(`/api/email/${emailId}/regenerate?tone=${tone}`)
+  return response.data
+}
+
 export const getAnalytics = async () => {
   const response = await api.get("/api/analytics/summary")
   return response.data
+}
+
+export const signup = async (name, email, password) => {
+  const response = await api.post("/api/auth/signup", { name, email, password })
+  return response.data
+}
+
+export const login = async (email, password) => {
+  const response = await api.post("/api/auth/login", { email, password })
+  return response.data
+}
+
+export const googleLogin = async (credential) => {
+  const response = await api.post("/api/auth/google-login", { credential })
+  return response.data
+}
+export const analyzeEmailWithAttachment = async (data, file) => {
+  const formData = new FormData()
+  formData.append("body", data.body)
+  if (data.subject) formData.append("subject", data.subject)
+  if (data.sender) formData.append("sender", data.sender)
+  if (data.preferred_tone) formData.append("preferred_tone", data.preferred_tone)
+  if (file) formData.append("attachment", file)
+
+  const token = localStorage.getItem("token")
+  const response = await axios.post("http://localhost:8000/api/email/analyze-with-attachment", formData, {
+    headers: {
+      "Authorization": `Bearer ${token}`,
+    },
+  })
+  return response.data
+}
+export const fetchGmailEmails = async () => {
+  const googleToken = localStorage.getItem("google_token")
+  if (!googleToken) {
+    throw new Error("No Google token. Please login with Google.")
+  }
+  const response = await api.get("/api/auth/gmail/messages", {
+    params: { google_token: googleToken },
+  })
+  return response.data.emails
 }

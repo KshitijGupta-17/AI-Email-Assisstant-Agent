@@ -1,18 +1,18 @@
 from datetime import datetime
-from sqlalchemy import Integer, String, Float, Text, DateTime, Boolean, ForeignKey
+from sqlalchemy import Integer, String, Float, Text, DateTime, Boolean, ForeignKey, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
+from sqlalchemy.sql import func
 
 
 class Email(Base):
-    """
-    Stores every email submitted by the user.
-    Holds the AI results: category, confidence score, and summary.
-    """
     __tablename__ = "emails"
 
     id: Mapped[int] = mapped_column(
         Integer, primary_key=True, autoincrement=True
+    )
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
     )
     subject: Mapped[str | None] = mapped_column(
         String(500), nullable=True
@@ -36,7 +36,6 @@ class Email(Base):
         DateTime, default=datetime.utcnow, nullable=False
     )
 
-    # One email has three reply drafts (formal, friendly, brief)
     replies: Mapped[list["Reply"]] = relationship(
         "Reply",
         back_populates="email",
@@ -45,10 +44,6 @@ class Email(Base):
 
 
 class Reply(Base):
-    """
-    Stores the three AI-generated reply drafts for each email.
-    Records user feedback (liked / disliked) per draft.
-    """
     __tablename__ = "replies"
 
     id: Mapped[int] = mapped_column(
@@ -60,13 +55,13 @@ class Reply(Base):
         nullable=False,
     )
     tone: Mapped[str] = mapped_column(
-        String(50), nullable=False  # formal / friendly / brief
+        String(50), nullable=False
     )
     draft_text: Mapped[str] = mapped_column(
         Text, nullable=False
     )
     feedback: Mapped[str | None] = mapped_column(
-        String(20), nullable=True  # liked / disliked / None
+        String(20), nullable=True
     )
     was_copied: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
@@ -81,18 +76,13 @@ class Reply(Base):
 
 
 class UserPreference(Base):
-    """
-    Tracks which reply tones the user likes.
-    One row per user (user_id = 1 for MVP).
-    preferred_tone is updated after every liked feedback.
-    """
     __tablename__ = "user_preferences"
 
     id: Mapped[int] = mapped_column(
         Integer, primary_key=True, autoincrement=True
     )
     user_id: Mapped[int] = mapped_column(
-        Integer, unique=True, nullable=False, default=1
+        Integer, ForeignKey("users.id"), unique=True, nullable=False
     )
     preferred_tone: Mapped[str | None] = mapped_column(
         String(50), nullable=True
@@ -106,3 +96,13 @@ class UserPreference(Base):
     brief_likes: Mapped[int] = mapped_column(
         Integer, default=0, nullable=False
     )
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id              = Column(Integer, primary_key=True, index=True)
+    name            = Column(String(255), nullable=False)
+    email           = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    created_at      = Column(DateTime, default=func.now())

@@ -9,6 +9,7 @@ class EmailAnalyzeRequest(BaseModel):
     sender:  str | None = Field(None, max_length=255)
     body:    str        = Field(..., min_length=1,
                                 description="Email body cannot be empty.")
+    preferred_tone: str | None = Field(None, pattern="^(formal|friendly|brief)$")
 
 
 class FeedbackRequest(BaseModel):
@@ -31,6 +32,7 @@ class EmailAnalyzeResponse(BaseModel):
     category:   str
     confidence: float
     summary:    str
+    is_thread:  bool
     replies:    list[ReplyOut]
 
 
@@ -56,3 +58,33 @@ class AnalyticsSummary(BaseModel):
     categories:     dict[str, int]
     tone_likes:     dict[str, int]
     preferred_tone: str | None
+
+class SignupRequest(BaseModel):
+    name:     str = Field(..., min_length=2, max_length=255)
+    email:    str = Field(..., max_length=255)
+    password: str = Field(..., min_length=6)
+
+class LoginRequest(BaseModel):
+    email:    str
+    password: str
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type:   str = "bearer"
+    user_name:    str
+    user_email:   str
+
+class SignupRequest(BaseModel):
+    name:     str = Field(..., min_length=2, max_length=255)
+    email:    str = Field(..., max_length=255)
+    password: str = Field(..., min_length=6)
+
+class LoginRequest(BaseModel):
+    email:    str
+    password: str
+
+class AuthResponse(BaseModel):
+    access_token: str
+    token_type:   str = "bearer"
+    user_name:    str
+    user_email:   str

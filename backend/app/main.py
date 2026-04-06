@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.database import init_db
 from app.routers import email, analytics
+from app.routers.auth import router as auth_router
 
 # ✅ ADD THIS LINE (CRITICAL)
 from app import models  
@@ -28,7 +29,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
     allow_credentials=True,
@@ -36,7 +37,7 @@ app.add_middleware(
 
 app.include_router(email.router)
 app.include_router(analytics.router)
-
+app.include_router(auth_router)
 
 @app.get("/", tags=["Health"])
 async def root():
