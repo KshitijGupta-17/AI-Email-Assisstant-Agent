@@ -36,8 +36,19 @@ export const getHistory = async () => {
   return response.data
 }
 
+// Regenerate all replies for an email (by email_id + optional tone)
 export const regenerateReplies = async (emailId, tone) => {
-  const response = await api.post(`/api/email/${emailId}/regenerate?tone=${tone}`)
+  const params = tone ? `?tone=${tone}` : ""
+  const response = await api.post(`/api/email/${emailId}/regenerate${params}`)
+  return response.data
+}
+
+// Regenerate a single reply with a custom user instruction
+export const regenerateWithInstruction = async (emailId, tone, instruction) => {
+  const params = new URLSearchParams()
+  if (tone)        params.append("tone",        tone)
+  if (instruction) params.append("instruction", instruction)
+  const response = await api.post(`/api/email/${emailId}/regenerate?${params.toString()}`)
   return response.data
 }
 
@@ -88,5 +99,46 @@ export const fetchGmailEmails = async () => {
 }
 export const getEmailDetail = async (emailId) => {
   const response = await api.get(`/api/email/${emailId}`)
+  return response.data
+}
+// Get cached emails grouped by day — no Gmail API call
+export const fetchAndCacheInbox = async (googleToken, force = false) => {
+  const response = await api.post(`/api/inbox/fetch?force=${force}`, {}, {
+    headers: {
+      "X-Google-Token": googleToken,
+    },
+  })
+  return response.data
+}
+
+// Get cached emails grouped by day — no Gmail API call
+export const getGroupedInbox = async () => {
+  const response = await api.get("/api/inbox/grouped")
+  return response.data
+}
+
+// Generate AI reply for an email
+export const generateReply = async (emailId, userId) => {
+  const response = await api.post(`/api/inbox/${emailId}/reply/generate`, {}, {
+    headers: { "X-User-Id": userId },
+  })
+  return response.data
+}
+
+// Submit feedback + optionally regenerate
+export const submitReplyFeedback = async (replyId, feedback, instruction = "", userId) => {
+  const response = await api.post(`/api/inbox/reply/${replyId}/feedback`,
+    { feedback, instruction },
+    { headers: { "X-User-Id": userId } }
+  )
+  return response.data
+}
+
+// Send email via Gmail API
+export const sendEmail = async (to, subject, body, googleToken) => {
+  const response = await api.post("/api/inbox/send",
+    { to, subject, body },
+    { headers: { "X-Google-Token": googleToken } }
+  )
   return response.data
 }

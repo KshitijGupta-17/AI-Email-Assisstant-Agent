@@ -195,6 +195,7 @@ async def get_email_detail(
 async def regenerate_replies(
     email_id: int,
     tone: str | None = None,
+    instruction: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -210,7 +211,12 @@ async def regenerate_replies(
     for old in old_replies.scalars().all():
         await db.delete(old)
 
-    new_drafts = await generate_replies(email.subject or "", email.body, tone)
+    # Build body — optionally prepend user instruction so AI picks it up
+    body_with_instruction = email.body
+    if instruction:
+        body_with_instruction = f"User instruction: {instruction}\n\n{email.body}"
+
+    new_drafts = await generate_replies(email.subject or "", body_with_instruction, tone)
 
     reply_objects = []
     for draft in new_drafts:

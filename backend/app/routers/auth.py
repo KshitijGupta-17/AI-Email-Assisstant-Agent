@@ -52,8 +52,27 @@ async def get_current_user(
 @router.post("/signup", response_model=AuthResponse)
 async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == request.email))
-    if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Email already registered")
+    user = result.scalar_one_or_none()
+    
+    if user:
+        # Check if this user was created purely via Google OAuth (dummy password)
+        if pwd_context.verify("google-oauth-no-password", user.hashed_password):
+            # Let them set their manual password now!
+            user.name = request.name
+            user.hashed_password = pwd_context.hash(request.password)
+            await db.commit()
+            await db.refresh(user)
+            
+            token = create_token(user.id, user.email)
+            return AuthResponse(
+                access_token=token,
+                user_id=user.id,
+                user_name=user.name,
+                user_email=user.email,
+                google_token=user.google_token,
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
     user = User(
         name=request.name,
@@ -67,6 +86,7 @@ async def signup(request: SignupRequest, db: AsyncSession = Depends(get_db)):
     token = create_token(user.id, user.email)
     return AuthResponse(
         access_token=token,
+        user_id=user.id,
         user_name=user.name,
         user_email=user.email,
     )
@@ -83,8 +103,10 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
     token = create_token(user.id, user.email)
     return AuthResponse(
         access_token=token,
+        user_id=user.id,
         user_name=user.name,
         user_email=user.email,
+        google_token=user.google_token,
     )
 
 
@@ -124,16 +146,22 @@ async def google_login(token: dict, db: AsyncSession = Depends(get_db)):
             name=name,
             email=email,
             hashed_password=pwd_context.hash("google-oauth-no-password"),
+            google_token=token["credential"],
         )
         db.add(user)
-        await db.commit()
-        await db.refresh(user)
+    else:
+        user.google_token = token["credential"]
+
+    await db.commit()
+    await db.refresh(user)
 
     jwt_token = create_token(user.id, user.email)
     return AuthResponse(
         access_token=jwt_token,
+        user_id=user.id,
         user_name=user.name,
         user_email=user.email,
+        google_token=user.google_token,
     )
 
 @router.get("/gmail/messages")

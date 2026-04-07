@@ -33,6 +33,7 @@ export default function AuthPage({ onLogin }) {
     try {
       const result = await googleLogin(tokenResponse.access_token)
       localStorage.setItem("token", result.access_token)
+      localStorage.setItem("user_id", result.user_id)
       localStorage.setItem("user_name", result.user_name)
       localStorage.setItem("user_email", result.user_email)
       localStorage.setItem("google_token", tokenResponse.access_token)
@@ -69,8 +70,12 @@ export default function AuthPage({ onLogin }) {
       const result = await login(form.email, form.password)
       toast.success(`Welcome back, ${result.user_name}!`)
       localStorage.setItem("token",      result.access_token)
+      localStorage.setItem("user_id",    result.user_id)
       localStorage.setItem("user_name",  result.user_name)
       localStorage.setItem("user_email", result.user_email)
+      // NEVER restore google_token from a manual login — it's always expired
+      // and might belong to a different Google account. Only Google OAuth sets this.
+      localStorage.removeItem("google_token")
       onLogin(result)
     } catch (err) {
       const detail = err.response?.data?.detail

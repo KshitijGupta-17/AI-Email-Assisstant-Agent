@@ -7,14 +7,14 @@ import ResultPanel  from "./components/ResultPanel"
 import Analytics    from "./components/Analytics"
 import PriorityInbox from "./components/PriorityInbox"
 import AuthPage     from "./components/AuthPage"
-import GmailInbox   from "./components/GmailInbox"
 import { tk, FONTS } from "./theme"
-
+import DayGroupedInbox from "./components/DayGroupedInbox"
+import { fetchAndCacheInbox } from "./api"
+import { useEffect } from "react" 
 const NAV_ITEMS = [
   { id:"home",      label:"Analyze",        icon:Mail,      desc:"Classify & reply"  },
-  { id:"gmail",     label:"Gmail Inbox",    icon:Inbox,     desc:"Fetch real emails" },
+  { id:"inbox",     label:"Inbox",          icon:Inbox,     desc:"Synced Gmail items" },
   { id:"analytics", label:"Analytics",      icon:BarChart3, desc:"Insights & trends" },
-  { id:"inbox",     label:"Priority Inbox", icon:Inbox,     desc:"Sorted by urgency" },
 ]
 
 const pageVariants = {
@@ -29,23 +29,27 @@ export default function App() {
   const [view,       setView]       = useState("home")
   const [dark,       setDark]       = useState(true)
   const [gmailEmail, setGmailEmail] = useState(null)
+  const [senderEmail, setSenderEmail] = useState(null)
 
   const [user, setUser] = useState(() => {
     const token = localStorage.getItem("token")
+    const id    = localStorage.getItem("user_id")
     const name  = localStorage.getItem("user_name")
     const email = localStorage.getItem("user_email")
-    return token ? { token, name, email } : null
+    return token ? { token, id, name, email } : null
   })
 
-  const handleLogin = (d) => setUser({ token:d.access_token, name:d.user_name, email:d.user_email })
+  const handleLogin = (d) => setUser({ token:d.access_token, id:d.user_id, name:d.user_name, email:d.user_email })
 
   const handleLogout = () => {
     localStorage.removeItem("token")
+    localStorage.removeItem("user_id")
     localStorage.removeItem("user_name")
     localStorage.removeItem("user_email")
     localStorage.removeItem("google_token")
     setUser(null)
     setResult(null)
+    setSenderEmail(null)
     setIsLoading(false)
     setView("home")
     setGmailEmail(null)
@@ -54,14 +58,34 @@ export default function App() {
   const handleGmailSelect = (emailData) => {
     setGmailEmail(emailData)
     setResult(null)
+    setSenderEmail(null)
     setView("home")
   }
+
+  // Called when user clicks an email in the Inbox tab
+  const handleInboxEmailSelect = (cachedEmail) => {
+    setGmailEmail({
+      subject: cachedEmail.subject || "",
+      sender:  cachedEmail.sender  || "",
+      body:    cachedEmail.snippet || "",
+    })
+    setSenderEmail(cachedEmail.sender || "")
+    setResult(null)
+    setView("home")
+  }
+
+  useEffect(() => {
+    const googleToken = localStorage.getItem("google_token")
+    if (user && googleToken && googleToken !== "null" && googleToken !== "undefined") {
+      // Fire and forget — silently caches inbox in background
+      fetchAndCacheInbox(googleToken).catch(console.error)
+    }
+  }, [user])
 
   if (!user) return <AuthPage onLogin={handleLogin} />
 
   const t = tk(dark)
   const currentNav = NAV_ITEMS.find(n => n.id === view)
-
   return (
     <>
       <style>{`
@@ -69,10 +93,11 @@ export default function App() {
         *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
         body { background:${t.appBg}; }
         .app-wrap { display:flex; height:100vh; background:${t.appBg}; font-family:'DM Sans',sans-serif; overflow:hidden; transition:background 0.35s; }
-        .main-scroll { scrollbar-width:thin; scrollbar-color:${t.scrollThumb} transparent; }
-        .main-scroll::-webkit-scrollbar { width:4px; }
-        .main-scroll::-webkit-scrollbar-track { background:transparent; }
-        .main-scroll::-webkit-scrollbar-thumb { background:${t.scrollThumb}; border-radius:4px; }
+        .main-scroll { scrollbar-width: thin; scrollbar-color: ${t.scrollThumb} transparent; }
+        .main-scroll::-webkit-scrollbar { width: 8px; }
+        .main-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 4px; }
+        .main-scroll::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.6); border-radius: 4px; }
+        .main-scroll::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,0.9); }
         .nav-btn { width:100%; display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:12px; font-size:13px; font-weight:500; font-family:'DM Sans',sans-serif; border:none; cursor:pointer; position:relative; transition:background 0.18s, color 0.18s; text-align:left; }
         .nav-icon { width:32px; height:32px; border-radius:9px; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:background 0.18s, color 0.18s; }
         .active-pip { position:absolute; left:0; top:50%; transform:translateY(-50%); width:3px; height:22px; background:linear-gradient(to bottom,#818cf8,#7c3aed); border-radius:0 4px 4px 0; }
@@ -168,13 +193,8 @@ export default function App() {
                 {view==="home" && (
                   <motion.div key="home" variants={pageVariants} initial="initial" animate="animate" exit="exit"
                     style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))", gap:20, alignItems:"start" }}>
-                    <EmailForm onResult={setResult} onLoading={setIsLoading} dark={dark} prefillEmail={gmailEmail}/>
-                    <ResultPanel result={result} isLoading={isLoading} dark={dark}/>
-                  </motion.div>
-                )}
-                {view==="gmail" && (
-                  <motion.div key="gmail" variants={pageVariants} initial="initial" animate="animate" exit="exit">
-                    <GmailInbox onSelectEmail={handleGmailSelect} dark={dark}/>
+                    <EmailForm onResult={(r, sender) => { setResult(r); setSenderEmail(sender || null) }} onLoading={setIsLoading} dark={dark} prefillEmail={gmailEmail}/>
+                    <ResultPanel result={result} isLoading={isLoading} dark={dark} user={user} senderEmail={senderEmail}/>
                   </motion.div>
                 )}
                 {view==="analytics" && (
@@ -184,7 +204,7 @@ export default function App() {
                 )}
                 {view==="inbox" && (
                   <motion.div key="inbox" variants={pageVariants} initial="initial" animate="animate" exit="exit">
-                    <PriorityInbox dark={dark}/>
+                    <DayGroupedInbox user={user} dark={dark} onSelectEmail={handleInboxEmailSelect}/>
                   </motion.div>
                 )}
               </AnimatePresence>

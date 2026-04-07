@@ -71,20 +71,7 @@ class LoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     access_token: str
     token_type:   str = "bearer"
+    user_id:      int
     user_name:    str
     user_email:   str
-
-class SignupRequest(BaseModel):
-    name:     str = Field(..., min_length=2, max_length=255)
-    email:    str = Field(..., max_length=255)
-    password: str = Field(..., min_length=6)
-
-class LoginRequest(BaseModel):
-    email:    str
-    password: str
-
-class AuthResponse(BaseModel):
-    access_token: str
-    token_type:   str = "bearer"
-    user_name:    str
-    user_email:   str
+    google_token: str | None = None

@@ -94,7 +94,7 @@ export default function EmailForm({ onResult, onLoading, prefillEmail, dark = tr
       } else {
         result = await analyzeEmail(form)
       }
-      onResult(result); toast.success("Analysis complete!", { icon: "✨" })
+      onResult(result, form.sender); toast.success("Analysis complete!", { icon: "✨" })
     } catch (err) {
       const msg = err.response?.data?.detail || "Something went wrong. Is the backend running?"
       setError(msg); toast.error(msg)
