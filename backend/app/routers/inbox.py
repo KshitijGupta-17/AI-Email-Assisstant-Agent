@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta, timezone
@@ -110,12 +111,17 @@ async def fetch_and_cache_inbox(
     current_user=Depends(get_current_user),
 ):
     user_id = current_user.id
+    # DEBUG: trace which user is fetching so we can catch cross-account issues
+    print(f"[inbox/fetch] user_id={user_id} email={current_user.email} token_prefix={google_token[:16]}...")
+
     emails = await fetch_gmail_messages(google_token)
+    print(f"[inbox/fetch] Gmail returned {len(emails)} emails for user_id={user_id}")
 
     inserted = 0
+    skipped  = 0
 
     for email_data in emails:
-        # ✅ CRITICAL FIX: Check per user_id so two accounts don't share records
+        # CRITICAL: Check per (user_id, gmail_id) — NOT just gmail_id globally
         existing = await db.execute(
             select(CachedEmail).where(
                 CachedEmail.gmail_id == email_data["gmail_id"],
@@ -123,6 +129,7 @@ async def fetch_and_cache_inbox(
             )
         )
         if existing.scalar_one_or_none():
+            skipped += 1
             continue
 
         cached = CachedEmail(
@@ -140,10 +147,12 @@ async def fetch_and_cache_inbox(
         try:
             await db.commit()
             inserted += 1
-        except:
+        except Exception as exc:
+            print(f"[inbox/fetch] Insert failed for gmail_id={email_data['gmail_id']}: {exc}")
             await db.rollback()
 
-    return {"message": f"Fetched {inserted} emails"}
+    print(f"[inbox/fetch] Done: inserted={inserted} skipped={skipped} for user_id={user_id}")
+    return {"message": f"Fetched {inserted} emails", "inserted": inserted, "skipped": skipped}
 
 
 @router.get("/grouped")
@@ -178,3 +187,45 @@ async def get_grouped_inbox(
         })
 
     return grouped
+
+
+class SendEmailRequest(BaseModel):
+    to: str
+    subject: str
+    body: str
+
+
+@router.post("/send")
+async def send_email(
+    request: SendEmailRequest,
+    google_token: str = Header(..., alias="X-Google-Token"),
+    current_user=Depends(get_current_user),
+):
+    """
+    Send an email via the Gmail API using the user's Google OAuth token.
+    Expects X-Google-Token header and JSON body: { to, subject, body }.
+    """
+    import base64
+    from email.mime.text import MIMEText
+
+    # Build the raw RFC 2822 message
+    message = MIMEText(request.body)
+    message["to"] = request.to
+    message["subject"] = request.subject
+
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode("utf-8")
+
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        resp = await client.post(
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+            headers={"Authorization": f"Bearer {google_token}"},
+            json={"raw": raw},
+        )
+
+    if resp.status_code not in (200, 201):
+        raise HTTPException(
+            status_code=resp.status_code,
+            detail=f"Gmail send failed: {resp.text}",
+        )
+
+    return {"message": "Email sent successfully", "gmail_response": resp.json()}

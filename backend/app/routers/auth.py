@@ -112,28 +112,90 @@ async def login(request: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.get("/me")
 async def get_me(user: User = Depends(get_current_user)):
-    return {"id": user.id, "name": user.name, "email": user.email}
+    return {"id": user.id, "name": user.name, "email": user.email, "has_gmail": bool(user.google_token)}
+
+
+@router.post("/link-gmail")
+async def link_gmail(
+    token: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Links a Google OAuth access_token to the CURRENTLY logged-in user.
+    Works for both manual-login and Google-login users.
+    The frontend passes { credential: <google_access_token> }.
+    """
+    access_token = token.get("credential", "")
+    if not access_token:
+        raise HTTPException(status_code=400, detail="No Google token provided")
+
+    print(f"[link-gmail] user_id={current_user.id} ({current_user.email}) linking Gmail token...")
+
+    # Verify token is valid and get the Gmail address being linked
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            if resp.status_code != 200:
+                print(f"[link-gmail] Token verification failed: {resp.status_code}")
+                raise HTTPException(status_code=401, detail="Invalid Google token. Please try connecting Gmail again.")
+
+            userinfo = resp.json()
+            gmail_email = userinfo.get("email", "unknown")
+            print(f"[link-gmail] Verified Gmail: {gmail_email} → linking to user_id={current_user.id} ({current_user.email})")
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[link-gmail] Error verifying token: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to verify Google token")
+
+    # Save the token to the CURRENT user — not a lookup by Gmail email
+    current_user.google_token = access_token
+    await db.commit()
+    await db.refresh(current_user)
+
+    print(f"[link-gmail] ✅ Gmail ({gmail_email}) linked to user_id={current_user.id}")
+    return {
+        "message": f"Gmail connected successfully",
+        "gmail_email": gmail_email,
+        "user_id": current_user.id,
+        "linked_to": current_user.email,
+    }
 
 
 @router.post("/google-login", response_model=AuthResponse)
 async def google_login(token: dict, db: AsyncSession = Depends(get_db)):
     """
     Verify Google access token, get user info, create user if not exists, return JWT.
+    The 'credential' field holds a Google OAuth2 access_token (implicit flow).
     """
+    access_token = token.get("credential", "")
+    print(f"[google-login] Received access_token (first 20 chars): {access_token[:20]}...")
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 "https://www.googleapis.com/oauth2/v3/userinfo",
-                headers={"Authorization": f"Bearer {token['credential']}"},
+                headers={"Authorization": f"Bearer {access_token}"},
             )
             if response.status_code != 200:
+                print(f"[google-login] userinfo failed: {response.status_code} {response.text}")
                 raise HTTPException(status_code=401, detail="Invalid Google token")
 
             userinfo = response.json()
             email = userinfo["email"]
             name  = userinfo.get("name", email.split("@")[0])
 
-    except Exception:
+            print(f"[google-login] Authenticated Gmail account: {email} (name={name})")
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[google-login] Unexpected error: {exc}")
         raise HTTPException(status_code=401, detail="Google authentication failed")
 
     # Check if user exists
@@ -142,20 +204,24 @@ async def google_login(token: dict, db: AsyncSession = Depends(get_db)):
 
     # Create user if not exists
     if not user:
+        print(f"[google-login] Creating new user for {email}")
         user = User(
             name=name,
             email=email,
             hashed_password=pwd_context.hash("google-oauth-no-password"),
-            google_token=token["credential"],
+            google_token=access_token,
         )
         db.add(user)
     else:
-        user.google_token = token["credential"]
+        print(f"[google-login] Updating existing user id={user.id} for {email}")
+        # Always overwrite with the fresh token so stale tokens never survive
+        user.google_token = access_token
 
     await db.commit()
     await db.refresh(user)
 
     jwt_token = create_token(user.id, user.email)
+    print(f"[google-login] JWT issued for user_id={user.id} email={user.email}")
     return AuthResponse(
         access_token=jwt_token,
         user_id=user.id,

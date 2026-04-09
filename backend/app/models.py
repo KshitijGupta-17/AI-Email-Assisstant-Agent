@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Integer, String, Float, Text, DateTime, Boolean, ForeignKey, Column
+from sqlalchemy import Integer, String, Float, Text, DateTime, Boolean, ForeignKey, Column, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from sqlalchemy.sql import func
@@ -92,12 +92,20 @@ class CachedEmail(Base):
     Stores Gmail emails fetched at login.
     Avoids re-fetching from Gmail API on every page load.
     day_bucket: 'today' | 'yesterday' | 'last_7_days'
+
+    NOTE: gmail_id is unique PER USER (composite unique), NOT globally.
+    A global unique constraint would cause cross-account data leakage by
+    silently skipping inserts for User B if User A already has the same gmail_id.
     """
     __tablename__ = "cached_emails"
+    __table_args__ = (
+        # Composite unique: same gmail_id is OK across different users
+        UniqueConstraint("user_id", "gmail_id", name="uq_cached_email_user_gmail"),
+    )
 
     id          : Mapped[int]      = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id     : Mapped[int]      = mapped_column(Integer, nullable=False, index=True)
-    gmail_id    : Mapped[str]      = mapped_column(String(255), unique=True, nullable=False)
+    user_id     : Mapped[int]      = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    gmail_id    : Mapped[str]      = mapped_column(String(255), nullable=False)  # NOT globally unique — see __table_args__
     subject     : Mapped[str|None] = mapped_column(String(500), nullable=True)
     sender      : Mapped[str|None] = mapped_column(String(255), nullable=True)
     snippet     : Mapped[str|None] = mapped_column(Text, nullable=True)

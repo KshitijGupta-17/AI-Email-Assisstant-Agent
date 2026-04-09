@@ -1,10 +1,11 @@
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { RefreshCw, Mail, Clock, ArrowRight } from "lucide-react"
+import { RefreshCw, Mail, Clock, ArrowRight, CheckCircle2 } from "lucide-react"
+import toast from "react-hot-toast"
 import { useInbox } from "../hooks/useInbox"
 import { useGoogleLogin } from "@react-oauth/google"
 import { tk } from "../theme"
-import { googleLogin } from "../api"
+import { linkGmail } from "../api"
 
 const BUCKET_LABELS = {
   today:      "Today",
@@ -18,6 +19,11 @@ export default function DayGroupedInbox({ user, dark = true, onSelectEmail }) {
   const { emails, loading, error, refresh } = useInbox(user)
   const [filter, setFilter] = useState("all")
 
+  const [linking, setLinking] = useState(false)
+  const [linkedEmail, setLinkedEmail] = useState(
+    localStorage.getItem("gmail_linked_email") || null
+  )
+
   const googleTokenVal = localStorage.getItem("google_token")
   const needsAuth =
     !googleTokenVal ||
@@ -26,16 +32,31 @@ export default function DayGroupedInbox({ user, dark = true, onSelectEmail }) {
 
   const connectGmail = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
+      setLinking(true)
       try {
-        await googleLogin(tokenResponse.access_token)
+        // KEY FIX: linkGmail uses the current user's JWT to attach the token
+        // Works for manual-login users — does NOT create a new user
+        const result = await linkGmail(tokenResponse.access_token)
         localStorage.setItem("google_token", tokenResponse.access_token)
-        window.location.reload()
+        localStorage.setItem("gmail_linked_email", result.gmail_email)
+        setLinkedEmail(result.gmail_email)
+        toast.success(`✅ Gmail connected: ${result.gmail_email}`)
+        // Refresh inbox without full page reload
+        await refresh()
       } catch (err) {
         console.error("Failed to link Gmail", err)
+        toast.error(err?.response?.data?.detail || "Failed to connect Gmail. Try again.")
+      } finally {
+        setLinking(false)
       }
     },
-    scope: "https://www.googleapis.com/auth/gmail.readonly",
+    onError: (err) => {
+      console.error("[OAuth] Gmail connect error:", err)
+      toast.error("Google sign-in failed")
+    },
+    scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
     flow: "implicit",
+    prompt: "select_account",  // Always show account picker
   })
 
   if (loading)
@@ -105,16 +126,23 @@ export default function DayGroupedInbox({ user, dark = true, onSelectEmail }) {
 
             <button
               onClick={needsAuth ? () => connectGmail() : refresh}
+              disabled={linking}
               style={{
                 display: "flex", alignItems: "center", gap: 6,
                 padding: "7px 14px", borderRadius: 10,
                 background: needsAuth ? t.navActiveBg : t.accentDim,
                 border: `1px solid ${t.accentBorder}`,
-                color: t.accentIndigo, fontSize: 12, fontWeight: 500, cursor: "pointer",
+                color: t.accentIndigo, fontSize: 12, fontWeight: 500,
+                cursor: linking ? "not-allowed" : "pointer",
+                opacity: linking ? 0.6 : 1,
               }}
             >
-              <RefreshCw size={13} />
-              {needsAuth ? "Connect Gmail" : "Refresh"}
+              {linking
+                ? <><RefreshCw size={13} style={{ animation: "spin 0.6s linear infinite" }} /> Connecting…</>
+                : needsAuth
+                  ? <><CheckCircle2 size={13} /> Connect Gmail</>
+                  : <><RefreshCw size={13} /> Refresh</>
+              }
             </button>
           </div>
         </div>
@@ -218,11 +246,43 @@ export default function DayGroupedInbox({ user, dark = true, onSelectEmail }) {
 
       {/* EMPTY STATE */}
       {Object.values(emails).every((arr) => arr.length === 0) && (
-        <div style={{ textAlign: "center", padding: "48px 0" }}>
-          <Mail size={32} color={t.textFaint} />
-          <p style={{ color: t.textMuted, fontSize: 14, marginTop: 12 }}>
-            No emails found.
-          </p>
+        <div style={{ textAlign: "center", padding: "48px 24px" }}>
+          <Mail size={36} color={t.textFaint} />
+          {needsAuth ? (
+            <>
+              <p style={{ color: t.textPrimary, fontSize: 15, fontWeight: 600, marginTop: 14 }}>
+                Connect your Gmail to see emails
+              </p>
+              <p style={{ color: t.textMuted, fontSize: 13, marginTop: 6, marginBottom: 20 }}>
+                Click <strong>Connect Gmail</strong> above to link your Google account.<br />
+                Works even if you signed up with email &amp; password.
+              </p>
+              <button
+                onClick={() => connectGmail()}
+                disabled={linking}
+                style={{
+                  padding: "10px 24px", borderRadius: 12,
+                  background: "linear-gradient(135deg,#4f46e5,#7c3aed)",
+                  border: "none", color: "#fff", fontSize: 13,
+                  fontWeight: 600, cursor: "pointer",
+                  boxShadow: "0 4px 16px rgba(99,102,241,0.35)",
+                }}
+              >
+                {linking ? "Connecting…" : "Connect Gmail →"}
+              </button>
+            </>
+          ) : (
+            <>
+              <p style={{ color: t.textMuted, fontSize: 14, marginTop: 12 }}>
+                No emails found in your inbox.
+              </p>
+              {linkedEmail && (
+                <p style={{ color: t.textFaint, fontSize: 11, marginTop: 6 }}>
+                  Connected as: {linkedEmail}
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
     </div>

@@ -71,6 +71,12 @@ export const googleLogin = async (credential) => {
   const response = await api.post("/api/auth/google-login", { credential })
   return response.data
 }
+
+// Links a Google OAuth token to the currently logged-in user (works for manual-login users too)
+export const linkGmail = async (accessToken) => {
+  const response = await api.post("/api/auth/link-gmail", { credential: accessToken })
+  return response.data
+}
 export const analyzeEmailWithAttachment = async (data, file) => {
   const formData = new FormData()
   formData.append("body", data.body)

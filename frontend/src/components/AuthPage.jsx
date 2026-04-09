@@ -31,15 +31,36 @@ export default function AuthPage({ onLogin }) {
   const handleGoogleSuccess = async (tokenResponse) => {
     setLoading(true)
     try {
+      // DEBUG: log raw token to verify account selection
+      console.log("[OAuth] access_token received:", tokenResponse.access_token?.slice(0, 20) + "...")
+
       const result = await googleLogin(tokenResponse.access_token)
-      localStorage.setItem("token", result.access_token)
-      localStorage.setItem("user_id", result.user_id)
-      localStorage.setItem("user_name", result.user_name)
-      localStorage.setItem("user_email", result.user_email)
+
+      // DEBUG: log which Gmail account was authenticated
+      console.log("[OAuth] Authenticated as:", result.user_email)
+
+      // Guard: make sure the authenticated email matches what was selected
+      if (!result.user_email) {
+        throw new Error("Could not determine authenticated Gmail account")
+      }
+
+      // Clear any stale per-user state before storing new session
+      localStorage.removeItem("google_token")
+      localStorage.removeItem("token")
+      localStorage.removeItem("user_id")
+      localStorage.removeItem("user_name")
+      localStorage.removeItem("user_email")
+
+      localStorage.setItem("token",        result.access_token)
+      localStorage.setItem("user_id",      result.user_id)
+      localStorage.setItem("user_name",    result.user_name)
+      localStorage.setItem("user_email",   result.user_email)
       localStorage.setItem("google_token", tokenResponse.access_token)
+
       onLogin(result)
-      toast.success(`Welcome, ${result.user_name}!`)
-    } catch {
+      toast.success(`Welcome, ${result.user_name}! (${result.user_email})`)
+    } catch (err) {
+      console.error("[OAuth] Google login error:", err)
       toast.error("Google login failed")
     } finally {
       setLoading(false)
@@ -48,9 +69,14 @@ export default function AuthPage({ onLogin }) {
 
   const googleLoginHook = useGoogleLogin({
     onSuccess: handleGoogleSuccess,
-    onError: () => toast.error("Google login failed"),
-    scope: "https://www.googleapis.com/auth/gmail.readonly",
-    flow :"implicit",
+    onError: (err) => {
+      console.error("[OAuth] Google OAuth error:", err)
+      toast.error("Google login failed")
+    },
+    scope: "https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send",
+    flow: "implicit",
+    // CRITICAL: Force account picker every time — prevents silent reuse of personal account
+    prompt: "select_account",
   })
 
   const handleSubmit = async () => {
@@ -202,7 +228,11 @@ export default function AuthPage({ onLogin }) {
 
 {/* Google Button */}
 <button
-  onClick={() => googleLoginHook()}
+  onClick={() => {
+    // Clear stale google_token before launching picker to prevent any token reuse
+    localStorage.removeItem("google_token")
+    googleLoginHook()
+  }}
   className="w-full mt-6 flex items-center justify-center gap-3 py-3.5 bg-white rounded-xl hover:bg-gray-50 transition-all duration-300 cursor-pointer group shadow-sm hover:shadow-md active:scale-95"
 >
   <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
