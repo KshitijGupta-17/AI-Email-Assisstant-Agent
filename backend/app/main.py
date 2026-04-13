@@ -3,11 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.database import init_db
-from app.routers import email, analytics
-from app.routers.auth import router as auth_router
 from app.routers import email, analytics, inbox
-# ✅ ADD THIS LINE (CRITICAL)
-from app import models  
+from app.routers.auth import router as auth_router
+from app import models
 
 
 @asynccontextmanager
@@ -38,9 +36,9 @@ app.add_middleware(
 app.include_router(email.router)
 app.include_router(analytics.router)
 app.include_router(auth_router)
-app.include_router(email.router)
-app.include_router(analytics.router)
-app.include_router(inbox.router)         
+app.include_router(inbox.router)
+
+
 @app.get("/", tags=["Health"])
 async def root():
     return {"status": "ok", "message": "AI Email Assistant API is running."}
