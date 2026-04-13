@@ -243,7 +243,9 @@ async def submit_feedback(
     current_user=Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Reply).where(Reply.id == reply_id)
+        select(Reply)
+        .join(Email, Reply.email_id == Email.id)
+        .where(Reply.id == reply_id, Email.user_id == current_user.id)
     )
     reply = result.scalar_one_or_none()
 
