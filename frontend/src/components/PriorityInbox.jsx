@@ -10,7 +10,7 @@ const PRIORITY_ORDER = ["urgent", "action_required", "fyi", "spam"]
 const PRIORITY_CFG = {
   urgent:          { label:"Urgent",          icon:AlertTriangle, accent:"#ef4444", accentDim:"rgba(239,68,68,0.1)",  accentBorder:"rgba(239,68,68,0.22)",  accentGlow:"rgba(239,68,68,0.15)",  rowBorder:"rgba(239,68,68,0.2)"  },
   action_required: { label:"Action Required", icon:AlertCircle,   accent:"#f59e0b", accentDim:"rgba(245,158,11,0.1)", accentBorder:"rgba(245,158,11,0.22)", accentGlow:"rgba(245,158,11,0.12)", rowBorder:"rgba(245,158,11,0.2)" },
-  fyi:             { label:"FYI",             icon:Info,           accent:"#6366f1", accentDim:"rgba(99,102,241,0.1)", accentBorder:"rgba(99,102,241,0.22)", accentGlow:"rgba(99,102,241,0.12)", rowBorder:"rgba(99,102,241,0.2)" },
+  fyi:             { label:"FYI",             icon:Info,           accent:"#4e75a3", accentDim:"rgba(99,102,241,0.1)", accentBorder:"rgba(99,102,241,0.22)", accentGlow:"rgba(99,102,241,0.12)", rowBorder:"rgba(99,102,241,0.2)" },
   spam:            { label:"Spam",            icon:ShieldX,        accent:"#475569", accentDim:"rgba(71,85,105,0.1)",  accentBorder:"rgba(71,85,105,0.2)",   accentGlow:"rgba(71,85,105,0.1)",   rowBorder:"rgba(71,85,105,0.18)" },
 }
 
@@ -23,7 +23,7 @@ const TONE_COLORS = {
 const CAT_BADGE = {
   urgent: { bg:"rgba(239,68,68,0.1)", color:"#ef4444", border:"rgba(239,68,68,0.25)" },
   action_required: { bg:"rgba(245,158,11,0.1)", color:"#f59e0b", border:"rgba(245,158,11,0.25)" },
-  fyi: { bg:"rgba(99,102,241,0.1)", color:"#6366f1", border:"rgba(99,102,241,0.25)" },
+  fyi: { bg:"rgba(99,102,241,0.1)", color:"#4e75a3", border:"rgba(99,102,241,0.25)" },
   spam: { bg:"rgba(71,85,105,0.1)", color:"#475569", border:"rgba(71,85,105,0.25)" },
 }
 
@@ -259,8 +259,8 @@ function EmailDetailModal({ email, onClose, dark, t }) {
         )}
 
         <div style={{ position:"relative", background:dark?"rgba(99,102,241,0.06)":"rgba(99,102,241,0.04)", borderRadius:14, padding:"14px 18px 14px 22px", marginBottom:20, border:`1px solid ${dark?"rgba(99,102,241,0.15)":"rgba(99,102,241,0.1)"}`, overflow:"hidden" }}>
-          <div style={{ position:"absolute", left:0, top:0, bottom:0, width:3, background:"linear-gradient(to bottom,#6366f1,#8b5cf6)", borderRadius:"3px 0 0 3px" }} />
-          <p style={{ fontSize:10, fontWeight:700, color:"#6366f1", textTransform:"uppercase", letterSpacing:"0.12em", margin:"0 0 6px" }}>Summary</p>
+          <div style={{ position:"absolute", left:0, top:0, bottom:0, width:3, background:"linear-gradient(to bottom,#4e75a3,#8b5cf6)", borderRadius:"3px 0 0 3px" }} />
+          <p style={{ fontSize:10, fontWeight:700, color:"#4e75a3", textTransform:"uppercase", letterSpacing:"0.12em", margin:"0 0 6px" }}>Summary</p>
           <p style={{ fontSize:13, color:t.textSecondary, lineHeight:1.6, margin:0 }}>{email.summary}</p>
         </div>
 

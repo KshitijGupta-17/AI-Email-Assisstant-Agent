@@ -27,7 +27,17 @@ export default function App() {
   const [result,     setResult]     = useState(null)
   const [isLoading,  setIsLoading]  = useState(false)
   const [view,       setView]       = useState("home")
-  const [dark,       setDark]       = useState(true)
+  const [dark, setDark] = useState(() => {
+    const saved = localStorage.getItem("theme_dark");
+    return saved !== null ? saved === "true" : true;
+  });
+  const toggleDark = () => {
+    setDark(d => {
+      const next = !d;
+      localStorage.setItem("theme_dark", String(next));
+      return next;
+    });
+  };
   const [gmailEmail, setGmailEmail] = useState(null)
   const [senderEmail, setSenderEmail] = useState(null)
 
@@ -117,28 +127,28 @@ export default function App() {
                 <Zap size={18} color="#fff"/>
               </div>
               <div>
-                <h1 style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:15, color:"#f0f4ff", letterSpacing:"-0.02em", lineHeight:1 }}>AI Email</h1>
-                <span style={{ fontSize:9, fontWeight:500, letterSpacing:"0.22em", color:"rgba(139,128,255,0.55)", textTransform:"uppercase", display:"block", marginTop:4 }}>Assistant</span>
+                <h1 style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:15, color:t.textPrimary, letterSpacing:"-0.02em", lineHeight:1 }}>AI Email</h1>
+                <span style={{ fontSize:9, fontWeight:500, letterSpacing:"0.22em", color:dark?"rgba(139,128,255,0.55)":t.accentIndigo, textTransform:"uppercase", display:"block", marginTop:4 }}>Assistant</span>
               </div>
             </div>
 
-            <p style={{ fontSize:10, fontWeight:600, letterSpacing:"0.15em", color:"#2d4060", textTransform:"uppercase", padding:"0 12px", marginBottom:8 }}>Workspace</p>
+            <p style={{ fontSize:10, fontWeight:600, letterSpacing:"0.15em", color:t.textFaint, textTransform:"uppercase", padding:"0 12px", marginBottom:8 }}>Workspace</p>
 
             <nav style={{ display:"flex", flexDirection:"column", gap:2 }}>
               {NAV_ITEMS.map(({ id, label, icon:Icon, desc }) => {
                 const active = view === id
                 return (
                   <button key={id} onClick={() => setView(id)} className="nav-btn"
-                    style={{ background:active ? t.navActiveBg : "transparent", color:active ? t.navActiveText : "#4b6080" }}
-                    onMouseEnter={e=>{ if(!active) e.currentTarget.style.background="rgba(255,255,255,0.05)" }}
+                    style={{ background:active ? t.navActiveBg : "transparent", color:active ? t.navActiveText : t.textMuted }}
+                    onMouseEnter={e=>{ if(!active) e.currentTarget.style.background=dark?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.03)" }}
                     onMouseLeave={e=>{ if(!active) e.currentTarget.style.background="transparent" }}>
                     {active && <motion.div className="active-pip" layoutId="pip" transition={{ type:"spring", stiffness:400, damping:32 }}/>}
-                    <div className="nav-icon" style={{ background:active ? t.navIconActive : "rgba(255,255,255,0.04)", color:active ? t.navIconColor : "#3d5270" }}>
+                    <div className="nav-icon" style={{ background:active ? t.navIconActive : (dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)"), color:active ? t.navIconColor : t.textMuted }}>
                       <Icon size={15} strokeWidth={active?2.2:1.8}/>
                     </div>
                     <div style={{ flex:1 }}>
                       <span style={{ display:"block", lineHeight:1 }}>{label}</span>
-                      <span style={{ display:"block", fontSize:10, marginTop:3, color:active?"rgba(139,128,255,0.55)":"#2d4060" }}>{desc}</span>
+                      <span style={{ display:"block", fontSize:10, marginTop:3, color:active?(dark?"rgba(139,128,255,0.55)":"#4f46e5"):t.textFaint }}>{desc}</span>
                     </div>
                     {active && <ChevronRight size={13} color="rgba(139,128,255,0.4)"/>}
                   </button>
@@ -148,17 +158,17 @@ export default function App() {
           </div>
 
           <div style={{ padding:"16px", position:"relative" }}>
-            <div style={{ padding:"10px 12px", borderRadius:12, marginBottom:8, background:"rgba(255,255,255,0.03)", border:`1px solid ${t.sidebarBorder}` }}>
-              <p style={{ fontSize:12, fontWeight:600, color:"#c7d2e8", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</p>
-              <p style={{ fontSize:10, color:"#2d4060", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</p>
+            <div style={{ padding:"10px 12px", borderRadius:12, marginBottom:8, background:dark?"rgba(255,255,255,0.03)":"rgba(0,0,0,0.03)", border:`1px solid ${t.sidebarBorder}` }}>
+              <p style={{ fontSize:12, fontWeight:600, color:t.textPrimary, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.name}</p>
+              <p style={{ fontSize:10, color:t.textFaint, marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{user.email}</p>
             </div>
-            <button className="btm-btn" onClick={() => setDark(d=>!d)} style={{ color:"#4b6080" }}
-              onMouseEnter={e=>e.currentTarget.style.background="rgba(255,255,255,0.05)"}
+            <button className="btm-btn" onClick={toggleDark} style={{ color: t.textMuted }}
+              onMouseEnter={e=>e.currentTarget.style.background=dark?"rgba(255,255,255,0.05)":"rgba(0,0,0,0.03)"}
               onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-              <div style={{ width:32, height:32, borderRadius:9, background:"rgba(255,255,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <div style={{ width:32, height:32, borderRadius:9, background:dark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                 {dark ? <Sun size={14} color="#fbbf24"/> : <Moon size={14} color="#818cf8"/>}
               </div>
-              <span style={{ color:"#4b6080" }}>{dark?"Light Mode":"Dark Mode"}</span>
+              <span style={{ color: t.textMuted }}>{dark?"Light Mode":"Dark Mode"}</span>
             </button>
             <button className="btm-btn" onClick={handleLogout} style={{ color:"#f87171", marginTop:2 }}
               onMouseEnter={e=>e.currentTarget.style.background="rgba(239,68,68,0.08)"}
